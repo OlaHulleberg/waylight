@@ -1,0 +1,17 @@
+# Binary
+waylight
+
+# Zig build artifacts
+zig-cache/
+zig-out/
+.zig-cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/
+
+# Old Go solution
+golang-solution/
