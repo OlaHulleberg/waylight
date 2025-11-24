@@ -65,19 +65,25 @@ pub const Search = struct {
     }
 
     fn loadFromDir(self: *Search, dir_path: []const u8) !void {
+        std.log.info("Loading entries from: {s}", .{dir_path});
         var dir = try std.fs.openDirAbsolute(dir_path, .{ .iterate = true });
         defer dir.close();
 
+        var count: usize = 0;
         var iter = dir.iterate();
         while (try iter.next()) |entry| {
-            if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".desktop")) {
+            // Handle both regular files and symlinks
+            if ((entry.kind == .file or entry.kind == .sym_link) and std.mem.endsWith(u8, entry.name, ".desktop")) {
                 if (self.parseDesktopFile(dir, entry.name)) |desktop_entry| {
+                    std.log.debug("Loaded: {s}", .{desktop_entry.name});
                     try self.entries.append(self.allocator, desktop_entry);
+                    count += 1;
                 } else |err| {
                     std.log.debug("Failed to parse {s}: {}", .{ entry.name, err });
                 }
             }
         }
+        std.log.info("Loaded {d} entries from {s}", .{ count, dir_path });
     }
 
     fn parseDesktopFile(self: *Search, dir: std.fs.Dir, filename: []const u8) !DesktopEntry {
@@ -165,6 +171,8 @@ pub const Search = struct {
             try self.loadEntries();
         }
 
+        std.log.info("Searching for '{s}' among {d} entries", .{ query, self.entries.items.len });
+
         var results = std.ArrayListUnmanaged(DesktopEntry){};
         defer results.deinit(self.allocator);
 
@@ -181,10 +189,12 @@ pub const Search = struct {
             if (containsIgnoreCase(entry.name, query_lower) or
                 containsIgnoreCase(entry.comment, query_lower))
             {
+                std.log.debug("Match: {s}", .{entry.name});
                 try results.append(self.allocator, entry);
             }
         }
 
+        std.log.info("Found {d} results for '{s}'", .{ results.items.len, query });
         // Return a slice that will be valid as long as self.entries is valid
         return results.toOwnedSlice(self.allocator);
     }

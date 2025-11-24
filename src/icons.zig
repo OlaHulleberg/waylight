@@ -10,6 +10,8 @@ const icon_dirs = [_]struct { base: []const u8, suffix: []const u8 }{
     .{ .base = "/usr/share/icons/hicolor/32x32/apps/", .suffix = ".svg" },
     .{ .base = "/usr/share/icons/hicolor/128x128/apps/", .suffix = ".png" },
     .{ .base = "/usr/share/icons/hicolor/128x128/apps/", .suffix = ".svg" },
+    .{ .base = "/usr/share/icons/hicolor/256x256/apps/", .suffix = ".png" },
+    .{ .base = "/usr/share/icons/hicolor/256x256/apps/", .suffix = ".svg" },
     .{ .base = "/usr/share/icons/hicolor/scalable/apps/", .suffix = ".svg" },
     .{ .base = "/usr/share/pixmaps/", .suffix = ".png" },
     .{ .base = "/usr/share/pixmaps/", .suffix = ".svg" },

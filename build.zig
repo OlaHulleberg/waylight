@@ -20,9 +20,10 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary2("gtk4-layer-shell-0", .{ .use_pkg_config = .force });
     exe.linkSystemLibrary2("webkitgtk-6.0", .{ .use_pkg_config = .force });
 
-    // Add build options for conditional asset loading
+    // Add build options for conditional asset loading and logging
     const build_options = b.addOptions();
     build_options.addOption(bool, "embed_assets", optimize != .Debug);
+    build_options.addOption(std.log.Level, "log_level", b.option(std.log.Level, "log_level", "Log level (debug, info, warn, err)") orelse .warn);
     exe.root_module.addImport("build_options", build_options.createModule());
 
     // Install artifact

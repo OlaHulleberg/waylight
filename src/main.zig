@@ -1,8 +1,13 @@
 const std = @import("std");
+const build_options = @import("build_options");
 const wayland = @import("wayland.zig");
 const webview = @import("webview.zig");
 const handler = @import("handler.zig");
 const ipc = @import("ipc.zig");
+
+pub const std_options: std.Options = .{
+    .log_level = @enumFromInt(@intFromEnum(build_options.log_level)),
+};
 
 const Mode = enum {
     daemon,
