@@ -7,6 +7,7 @@ A fast application launcher for Wayland.
 ## Features
 
 - Application launcher with fuzzy search
+- File and directory search (powered by plocate)
 - Built-in calculator (type math expressions like `2+2` or `sqrt(16)`)
 - Copies calculator results to clipboard on Enter
 - Smooth animations
@@ -19,12 +20,14 @@ A fast application launcher for Wayland.
 - webkitgtk-6.0
 - wl-clipboard
 - libqalculate (for calculator)
+- plocate (for file search)
+- fd (optional, fallback for recently created files)
 - zig (build only)
 
 ### Arch Linux
 
 ```bash
-pacman -S gtk4 gtk4-layer-shell webkitgtk-6.0 wl-clipboard libqalculate zig
+pacman -S gtk4 gtk4-layer-shell webkitgtk-6.0 wl-clipboard libqalculate plocate fd zig
 ```
 
 ## Building

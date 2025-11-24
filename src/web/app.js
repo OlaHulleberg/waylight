@@ -1,6 +1,7 @@
 // State
 let results = [];
 let selectedIndex = 0;
+let searchTimeout = null;
 
 // Get first letter/initial from app name for fallback icon
 function getInitial(name) {
@@ -23,20 +24,24 @@ document.addEventListener('DOMContentLoaded', () => {
     container.style.height = container.offsetHeight + 'px';
 });
 
-// Search input handler
+// Search input handler with 50ms debounce
 searchInput.addEventListener('input', (e) => {
     const query = e.target.value;
 
     if (query.trim() === '') {
+        clearTimeout(searchTimeout);
         hideResults();
         return;
     }
 
-    // Send search query to Zig backend
-    sendToBackend({
-        type: 'search',
-        query: query
-    });
+    // 50ms debounce for plocate/fd search
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        sendToBackend({
+            type: 'search',
+            query: query
+        });
+    }, 50);
 });
 
 // Keyboard navigation
@@ -105,6 +110,18 @@ function renderResults() {
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                 </svg>
             `;
+        } else if (result.type === 'file' || result.type === 'dir') {
+            // File or directory result
+            const icon = result.type === 'dir' ? getFolderIcon() : getFileIcon();
+            item.innerHTML = `
+                <div class="result-icon file-icon">
+                    ${icon}
+                </div>
+                <div class="result-text">
+                    <div class="result-name">${escapeHtml(result.name)}</div>
+                    <div class="result-description">${escapeHtml(result.description)}</div>
+                </div>
+            `;
         } else {
             const initial = getInitial(result.name);
             item.innerHTML = `
@@ -161,6 +178,12 @@ function updatePreviewIcon() {
             <line x1="8" y1="18" x2="8" y2="18.01"/>
             <line x1="12" y1="18" x2="16" y2="18"/>
         </svg>`;
+        previewIcon.classList.add('visible');
+    } else if (selected && selected.type === 'dir') {
+        previewIcon.innerHTML = getFolderIcon();
+        previewIcon.classList.add('visible');
+    } else if (selected && selected.type === 'file') {
+        previewIcon.innerHTML = getFileIcon();
         previewIcon.classList.add('visible');
     } else if (selected && selected.type === 'app' && selected.icon) {
         previewIcon.innerHTML = `<img src="${selected.icon}" alt="">`;
@@ -268,6 +291,26 @@ function resetUI() {
 
     // Focus search input
     searchInput.focus();
+}
+
+// SVG icons for files and folders
+function getFolderIcon() {
+    return `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>`;
+}
+
+function getFileIcon() {
+    return `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+    </svg>`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Receive messages from Zig backend

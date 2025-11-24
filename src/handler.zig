@@ -1,6 +1,7 @@
 const std = @import("std");
 const c = @import("c.zig");
 const search = @import("search.zig");
+const filesearch = @import("filesearch.zig");
 const calculator = @import("calculator.zig");
 const launcher = @import("launcher.zig");
 const clipboard = @import("clipboard.zig");
@@ -22,6 +23,7 @@ pub const Handler = struct {
     webview: *c.WebKitWebView,
     hide_callback: ?*const fn () void,
     app_search: search.Search,
+    file_search: filesearch.FileSearch,
 
     pub fn init(allocator: std.mem.Allocator, webview: *c.WebKitWebView) Handler {
         return Handler{
@@ -29,11 +31,13 @@ pub const Handler = struct {
             .webview = webview,
             .hide_callback = null,
             .app_search = search.Search.init(allocator),
+            .file_search = filesearch.FileSearch.init(allocator),
         };
     }
 
     pub fn deinit(self: *Handler) void {
         self.app_search.deinit();
+        self.file_search.deinit();
     }
 
     pub fn setHideCallback(self: *Handler, callback: *const fn () void) void {
@@ -82,6 +86,8 @@ pub const Handler = struct {
         writer.writeAll("{\"type\":\"results\",\"results\":[") catch return;
 
         var has_results = false;
+        var result_count: usize = 0;
+        const max_results: usize = 8;
 
         // Check if query looks like a math expression
         if (calculator.isMathExpression(query)) {
@@ -97,16 +103,19 @@ pub const Handler = struct {
                 writeJsonEscaped(writer, calc_result.result) catch return;
                 writer.writeAll("\"}") catch return;
                 has_results = true;
+                result_count += 1;
             } else |err| {
                 std.log.debug("Calculator error: {}", .{err});
             }
         }
 
-        // Search for desktop apps
-        if (self.app_search.search(query, 8)) |entries| {
+        // Search for desktop apps (instant, in-memory) - prioritize apps, fill up to max_results
+        if (self.app_search.search(query, max_results)) |entries| {
             defer self.allocator.free(entries);
 
             for (entries) |entry| {
+                if (result_count >= max_results) break;
+
                 if (has_results) writer.writeAll(",") catch return;
                 writer.writeAll("{\"type\":\"app\",\"name\":\"") catch return;
                 writeJsonEscaped(writer, entry.name) catch return;
@@ -114,19 +123,65 @@ pub const Handler = struct {
                 writeJsonEscaped(writer, entry.exec) catch return;
                 writer.writeAll("\",\"icon\":\"") catch return;
                 if (entry.icon_path.len > 0) {
-                    // Send waylight:///icon URL for the icon (same origin, no cross-origin blocking)
-                    // Triple slash so "icon" is part of path, not host
                     writer.writeAll("waylight:///icon") catch return;
                     writeJsonEscaped(writer, entry.icon_path) catch return;
                 }
-                // Empty icon string triggers fallback in frontend
                 writer.writeAll("\",\"description\":\"") catch return;
                 writeJsonEscaped(writer, entry.comment) catch return;
                 writer.writeAll("\"}") catch return;
                 has_results = true;
+                result_count += 1;
             }
         } else |err| {
             std.log.debug("App search error: {}", .{err});
+        }
+
+        // Search for files and directories using plocate/fd
+        if (self.file_search.search(query, max_results - result_count)) |results| {
+            defer {
+                for (results) |*r| {
+                    var result = r.*;
+                    result.deinit();
+                }
+                self.allocator.free(results);
+            }
+
+            for (results) |result| {
+                if (result_count >= max_results) break;
+
+                // Skip .desktop files (already handled by app_search)
+                if (result.result_type == .app) continue;
+
+                if (has_results) writer.writeAll(",") catch return;
+
+                switch (result.result_type) {
+                    .app => {}, // Skip, handled above
+                    .file => {
+                        writer.writeAll("{\"type\":\"file\",\"name\":\"") catch return;
+                        writeJsonEscaped(writer, result.name) catch return;
+                        writer.writeAll("\",\"path\":\"") catch return;
+                        writeJsonEscaped(writer, result.path) catch return;
+                        writer.writeAll("\",\"icon\":\"\",\"description\":\"") catch return;
+                        writeJsonEscaped(writer, result.description) catch return;
+                        writer.writeAll("\"}") catch return;
+                        has_results = true;
+                        result_count += 1;
+                    },
+                    .dir => {
+                        writer.writeAll("{\"type\":\"dir\",\"name\":\"") catch return;
+                        writeJsonEscaped(writer, result.name) catch return;
+                        writer.writeAll("\",\"path\":\"") catch return;
+                        writeJsonEscaped(writer, result.path) catch return;
+                        writer.writeAll("\",\"icon\":\"\",\"description\":\"") catch return;
+                        writeJsonEscaped(writer, result.description) catch return;
+                        writer.writeAll("\"}") catch return;
+                        has_results = true;
+                        result_count += 1;
+                    },
+                }
+            }
+        } else |err| {
+            std.log.debug("File search error: {}", .{err});
         }
 
         writer.writeAll("]}") catch return;
@@ -171,10 +226,29 @@ pub const Handler = struct {
                     std.log.err("Failed to launch app: {}", .{err});
                 };
             }
+        } else if (std.mem.eql(u8, result_type.string, "file") or std.mem.eql(u8, result_type.string, "dir")) {
+            // Open file or directory with xdg-open
+            if (obj.get("path")) |path_val| {
+                self.xdgOpen(path_val.string) catch |err| {
+                    std.log.err("Failed to open: {}", .{err});
+                };
+            }
         }
 
         // Close after selection
         self.handleClose();
+    }
+
+    fn xdgOpen(self: *Handler, path: []const u8) !void {
+        const argv = [_][]const u8{ "xdg-open", path };
+
+        var child = std.process.Child.init(&argv, self.allocator);
+        child.stdin_behavior = .Ignore;
+        child.stdout_behavior = .Ignore;
+        child.stderr_behavior = .Ignore;
+
+        try child.spawn();
+        // Don't wait - let xdg-open run in background
     }
 
     fn handleClose(self: *Handler) void {

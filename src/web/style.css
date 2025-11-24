@@ -263,3 +263,8 @@ body {
 .results-container::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
 }
+
+/* File and folder icons */
+.file-icon svg {
+    color: rgba(255, 255, 255, 0.7);
+}
