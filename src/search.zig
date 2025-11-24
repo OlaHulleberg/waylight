@@ -69,12 +69,19 @@ pub const Search = struct {
         var dir = try std.fs.openDirAbsolute(dir_path, .{ .iterate = true });
         defer dir.close();
 
+        // Extract data directory (parent of "applications")
+        // e.g., "/usr/share/applications" -> "/usr/share"
+        const data_dir = if (std.mem.lastIndexOf(u8, dir_path, "/applications")) |idx|
+            dir_path[0..idx]
+        else
+            dir_path;
+
         var count: usize = 0;
         var iter = dir.iterate();
         while (try iter.next()) |entry| {
             // Handle both regular files and symlinks
             if ((entry.kind == .file or entry.kind == .sym_link) and std.mem.endsWith(u8, entry.name, ".desktop")) {
-                if (self.parseDesktopFile(dir, entry.name)) |desktop_entry| {
+                if (self.parseDesktopFile(dir, entry.name, data_dir)) |desktop_entry| {
                     std.log.debug("Loaded: {s}", .{desktop_entry.name});
                     try self.entries.append(self.allocator, desktop_entry);
                     count += 1;
@@ -86,7 +93,7 @@ pub const Search = struct {
         std.log.info("Loaded {d} entries from {s}", .{ count, dir_path });
     }
 
-    fn parseDesktopFile(self: *Search, dir: std.fs.Dir, filename: []const u8) !DesktopEntry {
+    fn parseDesktopFile(self: *Search, dir: std.fs.Dir, filename: []const u8, data_dir: []const u8) !DesktopEntry {
         _ = self;
 
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -152,8 +159,8 @@ pub const Search = struct {
             return error.SkipEntry;
         }
 
-        // Resolve icon path
-        const icon_path = icons.resolveIconPath(alloc, icon);
+        // Resolve icon path (search in data_dir first, then fallback)
+        const icon_path = icons.resolveIconPath(alloc, icon, data_dir);
 
         return DesktopEntry{
             .name = name,

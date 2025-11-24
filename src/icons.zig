@@ -1,25 +1,24 @@
 const std = @import("std");
 
-/// Icon search directories in priority order
-const icon_dirs = [_]struct { base: []const u8, suffix: []const u8 }{
-    .{ .base = "/usr/share/icons/hicolor/48x48/apps/", .suffix = ".png" },
-    .{ .base = "/usr/share/icons/hicolor/48x48/apps/", .suffix = ".svg" },
-    .{ .base = "/usr/share/icons/hicolor/64x64/apps/", .suffix = ".png" },
-    .{ .base = "/usr/share/icons/hicolor/64x64/apps/", .suffix = ".svg" },
-    .{ .base = "/usr/share/icons/hicolor/32x32/apps/", .suffix = ".png" },
-    .{ .base = "/usr/share/icons/hicolor/32x32/apps/", .suffix = ".svg" },
-    .{ .base = "/usr/share/icons/hicolor/128x128/apps/", .suffix = ".png" },
-    .{ .base = "/usr/share/icons/hicolor/128x128/apps/", .suffix = ".svg" },
-    .{ .base = "/usr/share/icons/hicolor/256x256/apps/", .suffix = ".png" },
-    .{ .base = "/usr/share/icons/hicolor/256x256/apps/", .suffix = ".svg" },
-    .{ .base = "/usr/share/icons/hicolor/scalable/apps/", .suffix = ".svg" },
-    .{ .base = "/usr/share/pixmaps/", .suffix = ".png" },
-    .{ .base = "/usr/share/pixmaps/", .suffix = ".svg" },
+/// Icon size/suffix combinations to search
+const icon_sizes = [_]struct { size: []const u8, suffix: []const u8 }{
+    .{ .size = "48x48", .suffix = ".png" },
+    .{ .size = "48x48", .suffix = ".svg" },
+    .{ .size = "64x64", .suffix = ".png" },
+    .{ .size = "64x64", .suffix = ".svg" },
+    .{ .size = "32x32", .suffix = ".png" },
+    .{ .size = "32x32", .suffix = ".svg" },
+    .{ .size = "128x128", .suffix = ".png" },
+    .{ .size = "128x128", .suffix = ".svg" },
+    .{ .size = "256x256", .suffix = ".png" },
+    .{ .size = "256x256", .suffix = ".svg" },
+    .{ .size = "scalable", .suffix = ".svg" },
 };
 
 /// Resolve an icon name to an absolute file path
+/// data_dir is the XDG data directory where the .desktop was found (e.g., "/usr/share" or "~/.local/share")
 /// Returns the path if found, empty string if not
-pub fn resolveIconPath(allocator: std.mem.Allocator, icon_name: []const u8) []const u8 {
+pub fn resolveIconPath(allocator: std.mem.Allocator, icon_name: []const u8, data_dir: []const u8) []const u8 {
     if (icon_name.len == 0) return "";
 
     // If already an absolute path, check if it exists
@@ -31,19 +30,44 @@ pub fn resolveIconPath(allocator: std.mem.Allocator, icon_name: []const u8) []co
         return "";
     }
 
-    // Search through icon directories
     var path_buf: [512]u8 = undefined;
 
-    for (icon_dirs) |dir| {
-        const path = std.fmt.bufPrint(&path_buf, "{s}{s}{s}", .{
-            dir.base,
-            icon_name,
-            dir.suffix,
-        }) catch continue;
+    // Get home directory for user icons fallback
+    const home = std.posix.getenv("HOME") orelse "/home";
+    var home_data_buf: [256]u8 = undefined;
+    const home_data = std.fmt.bufPrint(&home_data_buf, "{s}/.local/share", .{home}) catch "/home/.local/share";
 
-        if (fileExists(path)) {
-            std.log.debug("Icon found: {s} -> {s}", .{ icon_name, path });
-            return allocator.dupe(u8, path) catch return "";
+    // Determine primary and fallback icon directories based on .desktop source
+    const primary_base = data_dir;
+    const fallback_base = if (std.mem.eql(u8, data_dir, "/usr/share") or std.mem.eql(u8, data_dir, "/usr/local/share"))
+        home_data
+    else
+        @as([]const u8, "/usr/share");
+
+    // Search primary directory first, then fallback
+    const bases = [_][]const u8{ primary_base, fallback_base };
+    for (bases) |base| {
+        for (icon_sizes) |size| {
+            const path = std.fmt.bufPrint(&path_buf, "{s}/icons/hicolor/{s}/apps/{s}{s}", .{
+                base,
+                size.size,
+                icon_name,
+                size.suffix,
+            }) catch continue;
+
+            if (fileExists(path)) {
+                std.log.debug("Icon found: {s} -> {s}", .{ icon_name, path });
+                return allocator.dupe(u8, path) catch return "";
+            }
+        }
+    }
+
+    // Try pixmaps (system only)
+    for ([_][]const u8{ ".png", ".svg" }) |suffix| {
+        const pixmap_path = std.fmt.bufPrint(&path_buf, "/usr/share/pixmaps/{s}{s}", .{ icon_name, suffix }) catch continue;
+        if (fileExists(pixmap_path)) {
+            std.log.debug("Icon found (pixmaps): {s} -> {s}", .{ icon_name, pixmap_path });
+            return allocator.dupe(u8, pixmap_path) catch return "";
         }
     }
 
