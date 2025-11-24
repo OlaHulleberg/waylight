@@ -8,6 +8,8 @@ pub const WaylandContext = struct {
     allocator: std.mem.Allocator,
     window: *c.GtkWindow,
     main_loop: *c.GMainLoop,
+    visible: bool = true,
+    on_show: ?*const fn () void = null,
 
     pub fn init(allocator: std.mem.Allocator) !WaylandContext {
         // Create main loop
@@ -91,7 +93,7 @@ pub const WaylandContext = struct {
         if (keyval == c.GDK_KEY_Escape) {
             if (user_data) |data| {
                 const ctx: *WaylandContext = @ptrCast(@alignCast(data));
-                ctx.quit();
+                ctx.hide();
             }
             return 1; // Event handled
         }
@@ -104,5 +106,34 @@ pub const WaylandContext = struct {
 
     pub fn quit(self: *WaylandContext) void {
         c.g_main_loop_quit(self.main_loop);
+    }
+
+    pub fn show(self: *WaylandContext) void {
+        if (self.visible) return;
+        c.gtk_widget_set_visible(@ptrCast(self.window), 1);
+        c.gtk_window_present(self.window);
+        self.visible = true;
+        // Notify handler to reset UI
+        if (self.on_show) |callback| {
+            callback();
+        }
+    }
+
+    pub fn hide(self: *WaylandContext) void {
+        if (!self.visible) return;
+        c.gtk_widget_set_visible(@ptrCast(self.window), 0);
+        self.visible = false;
+    }
+
+    pub fn toggle(self: *WaylandContext) void {
+        if (self.visible) {
+            self.hide();
+        } else {
+            self.show();
+        }
+    }
+
+    pub fn setOnShowCallback(self: *WaylandContext, callback: *const fn () void) void {
+        self.on_show = callback;
     }
 };

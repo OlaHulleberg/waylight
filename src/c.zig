@@ -116,3 +116,16 @@ pub const WebKitSettings = c_imports.WebKitSettings;
 pub const webkit_web_view_get_settings = c_imports.webkit_web_view_get_settings;
 pub const webkit_settings_set_allow_file_access_from_file_urls = c_imports.webkit_settings_set_allow_file_access_from_file_urls;
 pub const webkit_settings_set_allow_universal_access_from_file_urls = c_imports.webkit_settings_set_allow_universal_access_from_file_urls;
+
+// GIO Channel for socket event loop integration
+pub const GIOChannel = c_imports.GIOChannel;
+pub const g_io_channel_unix_new = c_imports.g_io_channel_unix_new;
+pub const g_io_add_watch = c_imports.g_io_add_watch;
+pub const g_io_channel_unref = c_imports.g_io_channel_unref;
+pub const g_source_remove = c_imports.g_source_remove;
+pub const G_IO_IN = c_imports.G_IO_IN;
+pub const G_IO_ERR = c_imports.G_IO_ERR;
+pub const G_IO_HUP = c_imports.G_IO_HUP;
+
+// Window presentation (for focus)
+pub const gtk_window_present = c_imports.gtk_window_present;

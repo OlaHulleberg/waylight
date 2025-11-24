@@ -18,12 +18,13 @@ A fast application launcher for Wayland.
 - gtk4-layer-shell
 - webkitgtk-6.0
 - wl-clipboard
+- libqalculate (for calculator)
 - zig (build only)
 
 ### Arch Linux
 
 ```bash
-pacman -S gtk4 gtk4-layer-shell webkitgtk-6.0 wl-clipboard zig
+pacman -S gtk4 gtk4-layer-shell webkitgtk-6.0 wl-clipboard libqalculate zig
 ```
 
 ## Building
@@ -44,26 +45,42 @@ Or use the PKGBUILD for Arch Linux.
 
 ## Usage
 
-Add a keybind to launch waylight:
+Waylight runs as a daemon for instant startup. Add these to your config:
 
 ### Hyprland
 
 ```conf
-bind = SUPER, SPACE, exec, waylight
+# Start daemon on login
+exec-once = waylight
+
+# Toggle with keybind
+bind = SUPER, SPACE, exec, waylight --toggle
 ```
 
 ### Sway
 
 ```conf
-bindsym $mod+space exec waylight
+# Start daemon on login
+exec waylight
+
+# Toggle with keybind
+bindsym $mod+space exec waylight --toggle
 ```
+
+## Commands
+
+| Command | Action |
+|---------|--------|
+| `waylight` | Start daemon |
+| `waylight --toggle` | Toggle visibility |
+| `waylight --quit` | Stop daemon |
 
 ## Keybinds
 
 | Key | Action |
 |-----|--------|
 | `Enter` | Launch selected app / Copy calculator result |
-| `Escape` | Close |
+| `Escape` | Hide window |
 | `Arrow Up/Down` | Navigate results |
 
 ## License

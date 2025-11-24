@@ -247,9 +247,34 @@ function sendToBackend(message) {
     }
 }
 
+// Reset UI state (called when window becomes visible)
+function resetUI() {
+    // Clear search input
+    searchInput.value = '';
+
+    // Clear results
+    results = [];
+    selectedIndex = 0;
+    resultsList.innerHTML = '';
+    resultsContainer.classList.add('hidden');
+
+    // Clear preview icon
+    previewIcon.innerHTML = '';
+    previewIcon.classList.remove('visible');
+
+    // Reset container height
+    container.style.height = 'auto';
+    container.style.height = container.offsetHeight + 'px';
+
+    // Focus search input
+    searchInput.focus();
+}
+
 // Receive messages from Zig backend
 window.receiveFromBackend = function(message) {
     if (message.type === 'results') {
         updateResults(message.results);
+    } else if (message.type === 'reset') {
+        resetUI();
     }
 };

@@ -20,14 +20,14 @@ pub const Message = struct {
 pub const Handler = struct {
     allocator: std.mem.Allocator,
     webview: *c.WebKitWebView,
-    quit_callback: ?*const fn () void,
+    hide_callback: ?*const fn () void,
     app_search: search.Search,
 
     pub fn init(allocator: std.mem.Allocator, webview: *c.WebKitWebView) Handler {
         return Handler{
             .allocator = allocator,
             .webview = webview,
-            .quit_callback = null,
+            .hide_callback = null,
             .app_search = search.Search.init(allocator),
         };
     }
@@ -36,8 +36,13 @@ pub const Handler = struct {
         self.app_search.deinit();
     }
 
-    pub fn setQuitCallback(self: *Handler, callback: *const fn () void) void {
-        self.quit_callback = callback;
+    pub fn setHideCallback(self: *Handler, callback: *const fn () void) void {
+        self.hide_callback = callback;
+    }
+
+    /// Send reset message to JS to clear UI state
+    pub fn notifyReset(self: *Handler) void {
+        self.sendToJS("{\"type\":\"reset\"}");
     }
 
     pub fn handleMessage(self: *Handler, message_json: []const u8) void {
@@ -173,7 +178,7 @@ pub const Handler = struct {
     }
 
     fn handleClose(self: *Handler) void {
-        if (self.quit_callback) |callback| {
+        if (self.hide_callback) |callback| {
             callback();
         }
     }
