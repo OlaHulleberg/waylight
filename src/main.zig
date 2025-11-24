@@ -1,5 +1,6 @@
 const std = @import("std");
 const build_options = @import("build_options");
+const c = @import("c.zig");
 const wayland = @import("wayland.zig");
 const webview = @import("webview.zig");
 const handler = @import("handler.zig");
@@ -88,6 +89,9 @@ fn printUsage() void {
 var global_msg_handler: ?*handler.Handler = null;
 
 fn runDaemon(allocator: std.mem.Allocator) !void {
+    // Set GTK input method to simple context for proper dead key handling
+    _ = c.g_setenv("GTK_IM_MODULE", "gtk-im-context-simple", 1);
+
     // Initialize GTK (required by WebKitGTK)
     webview.init();
 

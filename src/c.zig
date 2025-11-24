@@ -92,6 +92,9 @@ pub const g_quark_from_string = c_imports.g_quark_from_string;
 // GLib memory allocation
 pub const g_malloc = c_imports.g_malloc;
 
+// GLib environment
+pub const g_setenv = c_imports.g_setenv;
+
 // CSS Provider for transparent window
 pub const GtkCssProvider = c_imports.GtkCssProvider;
 pub const gtk_css_provider_new = c_imports.gtk_css_provider_new;
