@@ -101,7 +101,7 @@ body {
 }
 
 .results-container {
-    max-height: 540px;
+    max-height: 390px; /* ~6 items visible */
     overflow-y: auto;
     overflow-x: hidden;
     padding: 8px;

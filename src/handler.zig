@@ -61,7 +61,7 @@ pub const Handler = struct {
             return;
         }
 
-        const max_results: usize = 8;
+        const max_results: usize = 20;
 
         // Single call to orchestrator - all search logic is there
         const results = self.orchestrator.search(query, max_results) catch |err| {

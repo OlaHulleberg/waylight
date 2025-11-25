@@ -31,7 +31,7 @@ pub const WaylandContext = struct {
         // Create GTK4 window
         self.window = @ptrCast(c.gtk_window_new());
         c.gtk_window_set_decorated(self.window, 0);
-        c.gtk_window_set_default_size(self.window, 640, 610);
+        c.gtk_window_set_default_size(self.window, 640, 460);
         c.gtk_window_set_child(self.window, gtk_widget);
 
         // Make window transparent with CSS
