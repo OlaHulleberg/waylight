@@ -95,12 +95,6 @@ pub const WebView = struct {
             0,
         );
     }
-
-    pub fn sendToJS(self: *WebView, js_code: []const u8) void {
-        const code_z = self.allocator.dupeZ(u8, js_code) catch return;
-        defer self.allocator.free(code_z);
-        c.webkit_web_view_run_javascript(@ptrCast(self.webview), code_z.ptr, null, null, null);
-    }
 };
 
 /// Handle requests to waylight:// URIs

@@ -1,43 +1,26 @@
 const std = @import("std");
 const c = @import("c.zig");
-const search = @import("search.zig");
-const filesearch = @import("filesearch.zig");
-const calculator = @import("calculator.zig");
+const search = @import("search/mod.zig");
 const launcher = @import("launcher.zig");
 const clipboard = @import("clipboard.zig");
-
-pub const MessageType = enum {
-    search,
-    select,
-    close,
-};
-
-pub const Message = struct {
-    type: []const u8,
-    query: ?[]const u8 = null,
-    result: ?std.json.Value = null,
-};
 
 pub const Handler = struct {
     allocator: std.mem.Allocator,
     webview: *c.WebKitWebView,
     hide_callback: ?*const fn () void,
-    app_search: search.Search,
-    file_search: filesearch.FileSearch,
+    orchestrator: search.Orchestrator,
 
     pub fn init(allocator: std.mem.Allocator, webview: *c.WebKitWebView) Handler {
         return Handler{
             .allocator = allocator,
             .webview = webview,
             .hide_callback = null,
-            .app_search = search.Search.init(allocator),
-            .file_search = filesearch.FileSearch.init(allocator),
+            .orchestrator = search.Orchestrator.init(allocator),
         };
     }
 
     pub fn deinit(self: *Handler) void {
-        self.app_search.deinit();
-        self.file_search.deinit();
+        self.orchestrator.deinit();
     }
 
     pub fn setHideCallback(self: *Handler, callback: *const fn () void) void {
@@ -78,134 +61,30 @@ pub const Handler = struct {
             return;
         }
 
-        // Build combined results
-        var json_buf = std.ArrayListUnmanaged(u8){};
-        defer json_buf.deinit(self.allocator);
-        const writer = json_buf.writer(self.allocator);
-
-        writer.writeAll("{\"type\":\"results\",\"results\":[") catch return;
-
-        var has_results = false;
-        var result_count: usize = 0;
         const max_results: usize = 8;
 
-        // Check if query looks like a math expression
-        if (calculator.isMathExpression(query)) {
-            if (calculator.evaluate(self.allocator, query)) |calc_result_const| {
-                var calc_result = calc_result_const;
-                defer calc_result.deinit();
-
-                // Add calculator result
-                if (has_results) writer.writeAll(",") catch return;
-                writer.writeAll("{\"type\":\"calc\",\"query\":\"") catch return;
-                writeJsonEscaped(writer, calc_result.query) catch return;
-                writer.writeAll("\",\"value\":\"") catch return;
-                writeJsonEscaped(writer, calc_result.result) catch return;
-                writer.writeAll("\"}") catch return;
-                has_results = true;
-                result_count += 1;
-            } else |err| {
-                std.log.debug("Calculator error: {}", .{err});
+        // Single call to orchestrator - all search logic is there
+        const results = self.orchestrator.search(query, max_results) catch |err| {
+            std.log.err("Search failed: {}", .{err});
+            self.sendToJS("{\"type\":\"results\",\"results\":[]}");
+            return;
+        };
+        defer {
+            for (results) |*r| {
+                var res = r.*;
+                res.deinit();
             }
+            self.allocator.free(results);
         }
 
-        // Search for desktop apps (instant, in-memory) - prioritize apps, fill up to max_results
-        if (self.app_search.search(query, max_results)) |entries| {
-            defer self.allocator.free(entries);
+        // Serialize results to JSON
+        const json = search.serializeResults(self.allocator, results) catch {
+            self.sendToJS("{\"type\":\"results\",\"results\":[]}");
+            return;
+        };
+        defer self.allocator.free(json);
 
-            for (entries) |entry| {
-                if (result_count >= max_results) break;
-
-                if (has_results) writer.writeAll(",") catch return;
-                writer.writeAll("{\"type\":\"app\",\"name\":\"") catch return;
-                writeJsonEscaped(writer, entry.name) catch return;
-                writer.writeAll("\",\"exec\":\"") catch return;
-                writeJsonEscaped(writer, entry.exec) catch return;
-                writer.writeAll("\",\"icon\":\"") catch return;
-                if (entry.icon_path.len > 0) {
-                    writer.writeAll("waylight:///icon") catch return;
-                    writeJsonEscaped(writer, entry.icon_path) catch return;
-                }
-                writer.writeAll("\",\"description\":\"") catch return;
-                writeJsonEscaped(writer, entry.comment) catch return;
-                writer.writeAll("\"}") catch return;
-                has_results = true;
-                result_count += 1;
-            }
-        } else |err| {
-            std.log.debug("App search error: {}", .{err});
-        }
-
-        // Search for files and directories using plocate/fd
-        if (self.file_search.search(query, max_results - result_count)) |results| {
-            defer {
-                for (results) |*r| {
-                    var result = r.*;
-                    result.deinit();
-                }
-                self.allocator.free(results);
-            }
-
-            for (results) |result| {
-                if (result_count >= max_results) break;
-
-                // Skip .desktop files (already handled by app_search)
-                if (result.result_type == .app) continue;
-
-                if (has_results) writer.writeAll(",") catch return;
-
-                switch (result.result_type) {
-                    .app => {}, // Skip, handled above
-                    .file => {
-                        writer.writeAll("{\"type\":\"file\",\"name\":\"") catch return;
-                        writeJsonEscaped(writer, result.name) catch return;
-                        writer.writeAll("\",\"path\":\"") catch return;
-                        writeJsonEscaped(writer, result.path) catch return;
-                        writer.writeAll("\",\"icon\":\"\",\"description\":\"") catch return;
-                        writeJsonEscaped(writer, result.description) catch return;
-                        writer.writeAll("\"}") catch return;
-                        has_results = true;
-                        result_count += 1;
-                    },
-                    .dir => {
-                        writer.writeAll("{\"type\":\"dir\",\"name\":\"") catch return;
-                        writeJsonEscaped(writer, result.name) catch return;
-                        writer.writeAll("\",\"path\":\"") catch return;
-                        writeJsonEscaped(writer, result.path) catch return;
-                        writer.writeAll("\",\"icon\":\"\",\"description\":\"") catch return;
-                        writeJsonEscaped(writer, result.description) catch return;
-                        writer.writeAll("\"}") catch return;
-                        has_results = true;
-                        result_count += 1;
-                    },
-                }
-            }
-        } else |err| {
-            std.log.debug("File search error: {}", .{err});
-        }
-
-        writer.writeAll("]}") catch return;
-
-        self.sendToJS(json_buf.items);
-    }
-
-    fn writeJsonEscaped(writer: anytype, str: []const u8) !void {
-        for (str) |char| {
-            switch (char) {
-                '"' => try writer.writeAll("\\\""),
-                '\\' => try writer.writeAll("\\\\"),
-                '\n' => try writer.writeAll("\\n"),
-                '\r' => try writer.writeAll("\\r"),
-                '\t' => try writer.writeAll("\\t"),
-                else => {
-                    if (char < 0x20) {
-                        try writer.print("\\u{x:0>4}", .{char});
-                    } else {
-                        try writer.writeByte(char);
-                    }
-                },
-            }
-        }
+        self.sendToJS(json);
     }
 
     fn handleSelect(self: *Handler, result: std.json.Value) void {

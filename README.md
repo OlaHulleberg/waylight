@@ -2,7 +2,7 @@
 
 # Waylight
 
-**A blazingly fast application launcher for Wayland**
+**An opinionated application launcher for Wayland**
 
 ![waylight](assets/screenshot.webp)
 
@@ -12,7 +12,7 @@
 
 ```bash
 # Arch Linux
-sudo pacman -S gtk4 gtk4-layer-shell webkitgtk-6.0 wl-clipboard libqalculate plocate zig
+sudo pacman -S gtk4 gtk4-layer-shell webkitgtk-6.0 wl-clipboard libqalculate plocate fd zig
 
 # Build & Install
 git clone https://github.com/OlaHulleberg/waylight && cd waylight
@@ -35,7 +35,7 @@ bindsym $mod+space exec waylight --toggle
 ## Features
 
 - **App launcher** with fuzzy search
-- **File search** powered by plocate
+- **File search** powered by plocate + fd
 - **Calculator** built-in (try `sqrt(16)` or `2^10`)
 - **Instant** daemon mode, no startup delay
 

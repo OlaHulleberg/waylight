@@ -34,7 +34,7 @@ searchInput.addEventListener('input', (e) => {
         return;
     }
 
-    // 50ms debounce for plocate/fd search
+    // 50ms debounce for file search
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
         sendToBackend({
