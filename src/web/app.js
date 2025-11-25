@@ -102,8 +102,8 @@ function renderResults() {
             item.classList.add('calc-result');
             item.innerHTML = `
                 <div class="result-text">
-                    <div class="result-description">${result.query} =</div>
-                    <div class="result-name">${result.value}</div>
+                    <div class="result-description">${escapeHtml(result.query)} =</div>
+                    <div class="result-name">${escapeHtml(result.value)}</div>
                 </div>
                 <svg class="copy-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -124,16 +124,18 @@ function renderResults() {
             `;
         } else {
             const initial = getInitial(result.name);
+            const escapedName = escapeHtml(result.name);
+            const escapedDesc = result.description ? escapeHtml(result.description) : '';
             item.innerHTML = `
                 <div class="result-icon">
                     ${result.icon
-                        ? `<img src="${result.icon}" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><span class="icon-fallback" style="display:none">${initial}</span>`
+                        ? `<img src="${escapeHtml(result.icon)}" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><span class="icon-fallback" style="display:none">${initial}</span>`
                         : `<span class="icon-fallback">${initial}</span>`
                     }
                 </div>
                 <div class="result-text">
-                    <div class="result-name">${result.name}</div>
-                    ${result.description ? `<div class="result-description">${result.description}</div>` : ''}
+                    <div class="result-name">${escapedName}</div>
+                    ${escapedDesc ? `<div class="result-description">${escapedDesc}</div>` : ''}
                 </div>
             `;
         }
@@ -166,7 +168,7 @@ function updatePreviewIcon() {
     const selected = results[selectedIndex];
 
     if (selected && selected.type === 'calc') {
-        previewIcon.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        setPreviewIcon(`<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <rect x="4" y="2" width="16" height="20" rx="2"/>
             <line x1="8" y1="6" x2="16" y2="6"/>
             <line x1="8" y1="10" x2="8" y2="10.01"/>
@@ -177,20 +179,15 @@ function updatePreviewIcon() {
             <line x1="16" y1="14" x2="16" y2="14.01"/>
             <line x1="8" y1="18" x2="8" y2="18.01"/>
             <line x1="12" y1="18" x2="16" y2="18"/>
-        </svg>`;
-        previewIcon.classList.add('visible');
+        </svg>`);
     } else if (selected && selected.type === 'dir') {
-        previewIcon.innerHTML = getFolderIcon();
-        previewIcon.classList.add('visible');
+        setPreviewIcon(getFolderIcon());
     } else if (selected && selected.type === 'file') {
-        previewIcon.innerHTML = getFileIcon();
-        previewIcon.classList.add('visible');
+        setPreviewIcon(getFileIcon());
     } else if (selected && selected.type === 'app' && selected.icon) {
-        previewIcon.innerHTML = `<img src="${selected.icon}" alt="">`;
-        previewIcon.classList.add('visible');
+        setPreviewIcon(`<img src="${selected.icon}" alt="">`);
     } else {
-        previewIcon.innerHTML = '';
-        previewIcon.classList.remove('visible');
+        clearPreviewIcon();
     }
 }
 
@@ -245,8 +242,7 @@ function showResults() {
 
 function hideResults() {
     resultsContainer.classList.add('hidden');
-    previewIcon.innerHTML = '';
-    previewIcon.classList.remove('visible');
+    clearPreviewIcon();
     updateContainerHeight();
 }
 
@@ -282,8 +278,7 @@ function resetUI() {
     resultsContainer.classList.add('hidden');
 
     // Clear preview icon
-    previewIcon.innerHTML = '';
-    previewIcon.classList.remove('visible');
+    clearPreviewIcon();
 
     // Reset container height
     container.style.height = 'auto';
@@ -311,6 +306,16 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function clearPreviewIcon() {
+    previewIcon.innerHTML = '';
+    previewIcon.classList.remove('visible');
+}
+
+function setPreviewIcon(content) {
+    previewIcon.innerHTML = content;
+    previewIcon.classList.add('visible');
 }
 
 // Receive messages from Zig backend

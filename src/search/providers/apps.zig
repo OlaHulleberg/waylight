@@ -132,20 +132,9 @@ pub const AppProvider = struct {
             if (results.items.len >= max_results * 2) break; // Get extra for sorting
         }
 
-        // Sort by score
-        std.mem.sort(SearchResult, results.items, {}, struct {
-            fn lessThan(_: void, a: SearchResult, b: SearchResult) bool {
-                return a.score < b.score;
-            }
-        }.lessThan);
-
-        // Trim to max
-        while (results.items.len > max_results) {
-            if (results.pop()) |*r| {
-                var res = r.*;
-                res.deinit();
-            }
-        }
+        // Sort and trim
+        result.sortByScore(results.items);
+        result.trimToMax(&results, max_results);
 
         return results.toOwnedSlice(self.allocator);
     }

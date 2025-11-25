@@ -58,20 +58,9 @@ pub const Orchestrator = struct {
             for (file_results) |r| try all_results.append(self.allocator, r);
         } else |_| {}
 
-        // Sort all results by score (lower = better)
-        std.mem.sort(SearchResult, all_results.items, {}, struct {
-            fn lessThan(_: void, a: SearchResult, b: SearchResult) bool {
-                return a.score < b.score;
-            }
-        }.lessThan);
-
-        // Trim to max_results
-        while (all_results.items.len > max_results) {
-            if (all_results.pop()) |*r| {
-                var res = r.*;
-                res.deinit();
-            }
-        }
+        // Sort and trim
+        result.sortByScore(all_results.items);
+        result.trimToMax(&all_results, max_results);
 
         return all_results.toOwnedSlice(self.allocator);
     }

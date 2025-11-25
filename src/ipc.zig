@@ -27,6 +27,18 @@ fn getSocketPath(allocator: std.mem.Allocator) ![]const u8 {
     return std.fmt.allocPrint(allocator, "/tmp/waylight-{d}.sock", .{uid});
 }
 
+/// Create Unix socket address from path
+fn makeUnixAddr(path: []const u8) posix.sockaddr.un {
+    var addr: posix.sockaddr.un = .{
+        .family = posix.AF.UNIX,
+        .path = undefined,
+    };
+    @memset(&addr.path, 0);
+    const path_bytes = path[0..@min(path.len, addr.path.len - 1)];
+    @memcpy(addr.path[0..path_bytes.len], path_bytes);
+    return addr;
+}
+
 // ============================================================================
 // IPC Server (runs in daemon)
 // ============================================================================
@@ -59,13 +71,7 @@ pub const IpcServer = struct {
         errdefer posix.close(fd);
 
         // Bind to path
-        var addr: posix.sockaddr.un = .{
-            .family = posix.AF.UNIX,
-            .path = undefined,
-        };
-        @memset(&addr.path, 0);
-        const path_bytes = socket_path[0..@min(socket_path.len, addr.path.len - 1)];
-        @memcpy(addr.path[0..path_bytes.len], path_bytes);
+        var addr = makeUnixAddr(socket_path);
 
         posix.bind(fd, @ptrCast(&addr), @sizeOf(posix.sockaddr.un)) catch {
             return IpcError.BindFailed;
@@ -168,13 +174,7 @@ pub const IpcClient = struct {
         defer posix.close(fd);
 
         // Connect
-        var addr: posix.sockaddr.un = .{
-            .family = posix.AF.UNIX,
-            .path = undefined,
-        };
-        @memset(&addr.path, 0);
-        const path_bytes = socket_path[0..@min(socket_path.len, addr.path.len - 1)];
-        @memcpy(addr.path[0..path_bytes.len], path_bytes);
+        var addr = makeUnixAddr(socket_path);
 
         posix.connect(fd, @ptrCast(&addr), @sizeOf(posix.sockaddr.un)) catch {
             return IpcError.ConnectFailed;
@@ -193,13 +193,7 @@ fn tryConnect(socket_path: []const u8) bool {
     const fd = posix.socket(posix.AF.UNIX, posix.SOCK.STREAM, 0) catch return false;
     defer posix.close(fd);
 
-    var addr: posix.sockaddr.un = .{
-        .family = posix.AF.UNIX,
-        .path = undefined,
-    };
-    @memset(&addr.path, 0);
-    const path_bytes = socket_path[0..@min(socket_path.len, addr.path.len - 1)];
-    @memcpy(addr.path[0..path_bytes.len], path_bytes);
+    var addr = makeUnixAddr(socket_path);
 
     posix.connect(fd, @ptrCast(&addr), @sizeOf(posix.sockaddr.un)) catch return false;
     return true;

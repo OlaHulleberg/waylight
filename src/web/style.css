@@ -1,3 +1,7 @@
+:root {
+    --icon-size: 32px;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -72,8 +76,8 @@ body {
 }
 
 .preview-icon {
-    width: 32px;
-    height: 32px;
+    width: var(--icon-size);
+    height: var(--icon-size);
     flex-shrink: 0;
     display: none;
     align-items: center;
@@ -168,8 +172,8 @@ body {
 }
 
 .result-icon {
-    width: 32px;
-    height: 32px;
+    width: var(--icon-size);
+    height: var(--icon-size);
     border-radius: 8px;
     flex-shrink: 0;
     display: flex;
@@ -180,14 +184,14 @@ body {
 }
 
 .result-icon img {
-    width: 32px;
-    height: 32px;
+    width: var(--icon-size);
+    height: var(--icon-size);
     object-fit: contain;
 }
 
 .icon-fallback {
-    width: 32px;
-    height: 32px;
+    width: var(--icon-size);
+    height: var(--icon-size);
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 8px;
     display: flex;
@@ -229,17 +233,17 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-.calc-result .result-text {
+.calc-result > .result-text {
     flex-direction: column;
 }
 
-.calc-result .result-name {
+.calc-result > .result-text > .result-name {
     font-size: 24px;
     font-weight: 600;
     color: #ffffff;
 }
 
-.calc-result .result-description {
+.calc-result > .result-text > .result-description {
     font-size: 13px;
     color: rgba(255, 255, 255, 0.6);
 }
@@ -270,9 +274,4 @@ body {
 
 .results-container::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
-}
-
-/* File and folder icons */
-.file-icon svg {
-    color: rgba(255, 255, 255, 0.7);
 }

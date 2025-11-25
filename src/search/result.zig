@@ -92,6 +92,25 @@ pub fn serializeResults(allocator: std.mem.Allocator, results: []const SearchRes
     return buf.toOwnedSlice(allocator);
 }
 
+/// Sort results by score (lower = better match)
+pub fn sortByScore(items: []SearchResult) void {
+    std.mem.sort(SearchResult, items, {}, struct {
+        fn lessThan(_: void, a: SearchResult, b: SearchResult) bool {
+            return a.score < b.score;
+        }
+    }.lessThan);
+}
+
+/// Trim results to max count, deinit'ing removed items
+pub fn trimToMax(results: *std.ArrayListUnmanaged(SearchResult), max: usize) void {
+    while (results.items.len > max) {
+        if (results.pop()) |*r| {
+            var res = r.*;
+            res.deinit();
+        }
+    }
+}
+
 /// Escape a string for safe inclusion in JSON output
 pub fn writeJsonEscaped(writer: anytype, str: []const u8) !void {
     for (str) |char| {

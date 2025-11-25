@@ -23,14 +23,29 @@ pub const FileProvider = struct {
         var plocate_results: []SearchResult = &[_]SearchResult{};
         var fd_results: []SearchResult = &[_]SearchResult{};
 
-        const plocate_thread = std.Thread.spawn(.{}, runPlocateThread, .{ self, query, max_results, &plocate_results }) catch null;
-        const fd_thread = std.Thread.spawn(.{}, runFdThread, .{ self, query, max_results, &fd_results }) catch null;
+        const plocate_thread = std.Thread.spawn(.{}, runPlocateThread, .{ self, query, max_results, &plocate_results }) catch |err| blk: {
+            std.log.debug("Failed to spawn plocate thread: {}", .{err});
+            break :blk null;
+        };
+        const fd_thread = std.Thread.spawn(.{}, runFdThread, .{ self, query, max_results, &fd_results }) catch |err| blk: {
+            std.log.debug("Failed to spawn fd thread: {}", .{err});
+            break :blk null;
+        };
 
-        if (plocate_thread) |t| t.join();
-        if (fd_thread) |t| t.join();
+        var plocate_ran = false;
+        var fd_ran = false;
 
-        defer self.allocator.free(plocate_results);
-        defer self.allocator.free(fd_results);
+        if (plocate_thread) |t| {
+            t.join();
+            plocate_ran = true;
+        }
+        if (fd_thread) |t| {
+            t.join();
+            fd_ran = true;
+        }
+
+        defer if (plocate_ran) self.allocator.free(plocate_results);
+        defer if (fd_ran) self.allocator.free(fd_results);
 
         // Merge results, deduplicating by path
         var results = std.ArrayListUnmanaged(SearchResult){};
@@ -75,35 +90,32 @@ pub const FileProvider = struct {
             }
         }
 
-        // Sort by score
-        std.mem.sort(SearchResult, results.items, {}, struct {
-            fn lessThan(_: void, a: SearchResult, b: SearchResult) bool {
-                return a.score < b.score;
-            }
-        }.lessThan);
-
-        // Trim to max
-        while (results.items.len > max_results) {
-            if (results.pop()) |*r| {
-                var res = r.*;
-                res.deinit();
-            }
-        }
+        // Sort and trim
+        result.sortByScore(results.items);
+        result.trimToMax(&results, max_results);
 
         return results.toOwnedSlice(self.allocator);
     }
 
     fn runPlocateThread(self: *FileProvider, query: []const u8, max_results: usize, out: *[]SearchResult) void {
-        out.* = self.runPlocateSearch(query, max_results) catch &[_]SearchResult{};
+        out.* = self.runPlocateSearch(query, max_results) catch |err| {
+            std.log.debug("plocate search failed: {}", .{err});
+            out.* = self.allocator.alloc(SearchResult, 0) catch return;
+            return;
+        };
     }
 
     fn runFdThread(self: *FileProvider, query: []const u8, max_results: usize, out: *[]SearchResult) void {
-        out.* = self.runFdSearch(query, max_results) catch &[_]SearchResult{};
+        out.* = self.runFdSearch(query, max_results) catch |err| {
+            std.log.debug("fd search failed: {}", .{err});
+            out.* = self.allocator.alloc(SearchResult, 0) catch return;
+            return;
+        };
     }
 
     fn runPlocateSearch(self: *FileProvider, query: []const u8, max_results: usize) ![]SearchResult {
-        const limit_str = try std.fmt.allocPrint(self.allocator, "{d}", .{max_results * 2});
-        defer self.allocator.free(limit_str);
+        var limit_buf: [20]u8 = undefined;
+        const limit_str = std.fmt.bufPrint(&limit_buf, "{d}", .{max_results * 2}) catch unreachable;
 
         const argv = [_][]const u8{
             "plocate",
@@ -123,21 +135,28 @@ pub const FileProvider = struct {
         const output = try stdout.readToEndAlloc(self.allocator, 1024 * 1024);
         defer self.allocator.free(output);
 
-        _ = child.wait() catch {};
+        const term = child.wait() catch |err| {
+            std.log.debug("plocate wait failed: {}", .{err});
+            return self.parseOutput(output, query, max_results);
+        };
+        if (term.Exited != 0) {
+            std.log.debug("plocate exited with code {}", .{term.Exited});
+        }
 
         return self.parseOutput(output, query, max_results);
     }
 
     fn runFdSearch(self: *FileProvider, query: []const u8, max_results: usize) ![]SearchResult {
         const home = std.posix.getenv("HOME") orelse return &[_]SearchResult{};
-        const max_str = try std.fmt.allocPrint(self.allocator, "{d}", .{max_results * 2});
-        defer self.allocator.free(max_str);
+
+        var limit_buf: [20]u8 = undefined;
+        const limit_str = std.fmt.bufPrint(&limit_buf, "{d}", .{max_results * 2}) catch unreachable;
 
         const argv = [_][]const u8{
             "fd",
             "-i",
             "--max-results",
-            max_str,
+            limit_str,
             query,
             home,
         };
@@ -152,7 +171,13 @@ pub const FileProvider = struct {
         const output = try stdout.readToEndAlloc(self.allocator, 1024 * 1024);
         defer self.allocator.free(output);
 
-        _ = child.wait() catch {};
+        const term = child.wait() catch |err| {
+            std.log.debug("fd wait failed: {}", .{err});
+            return self.parseOutput(output, query, max_results);
+        };
+        if (term.Exited != 0) {
+            std.log.debug("fd exited with code {}", .{term.Exited});
+        }
 
         return self.parseOutput(output, query, max_results);
     }
