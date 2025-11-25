@@ -16,25 +16,30 @@ const Mode = enum {
     quit_daemon,
 };
 
+const Args = struct {
+    mode: Mode,
+    start_hidden: bool,
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     // Parse command line arguments
-    const mode = parseArgs();
+    const args = parseArgs();
 
-    switch (mode) {
+    switch (args.mode) {
         .toggle => {
             // Try to signal existing daemon
             if (ipc.IpcClient.isDaemonRunning(allocator)) {
                 ipc.IpcClient.sendCommand(allocator, .toggle) catch {
                     // Failed to send, try starting daemon
-                    try runDaemon(allocator);
+                    try runDaemon(allocator, false);
                 };
             } else {
-                // No daemon running, start one
-                try runDaemon(allocator);
+                // No daemon running, start one (visible since user wants to toggle)
+                try runDaemon(allocator, false);
             }
         },
         .quit_daemon => {
@@ -48,27 +53,31 @@ pub fn main() !void {
                 std.log.err("Waylight daemon is already running", .{});
                 return;
             }
-            try runDaemon(allocator);
+            try runDaemon(allocator, args.start_hidden);
         },
     }
 }
 
-fn parseArgs() Mode {
+fn parseArgs() Args {
     var args = std.process.args();
     _ = args.skip(); // Skip program name
 
+    var start_hidden = false;
+
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--toggle") or std.mem.eql(u8, arg, "-t")) {
-            return .toggle;
+            return .{ .mode = .toggle, .start_hidden = false };
         } else if (std.mem.eql(u8, arg, "--quit") or std.mem.eql(u8, arg, "-q")) {
-            return .quit_daemon;
+            return .{ .mode = .quit_daemon, .start_hidden = false };
+        } else if (std.mem.eql(u8, arg, "--daemon") or std.mem.eql(u8, arg, "-d")) {
+            start_hidden = true;
         } else if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
             printUsage();
             std.process.exit(0);
         }
     }
 
-    return .daemon;
+    return .{ .mode = .daemon, .start_hidden = start_hidden };
 }
 
 fn printUsage() void {
@@ -76,11 +85,12 @@ fn printUsage() void {
         \\Usage: waylight [OPTIONS]
         \\
         \\Options:
+        \\  --daemon, -d    Start daemon in background (hidden)
         \\  --toggle, -t    Toggle window visibility (starts daemon if not running)
         \\  --quit, -q      Quit the running daemon
         \\  --help, -h      Show this help message
         \\
-        \\Without options, starts as daemon and shows the window.
+        \\Without options, starts daemon and shows the window.
         \\
     , .{});
 }
@@ -88,7 +98,7 @@ fn printUsage() void {
 // Global handler for IPC callbacks
 var global_msg_handler: ?*handler.Handler = null;
 
-fn runDaemon(allocator: std.mem.Allocator) !void {
+fn runDaemon(allocator: std.mem.Allocator, start_hidden: bool) !void {
     // Set GTK input method to simple context for proper dead key handling
     _ = c.g_setenv("GTK_IM_MODULE", "gtk-im-context-simple", 1);
 
@@ -160,6 +170,11 @@ fn runDaemon(allocator: std.mem.Allocator) !void {
 
     // Integrate IPC with GLib main loop
     ipc_server.integrateWithGLib();
+
+    // Schedule window to show once main loop starts (unless started as daemon)
+    if (!start_hidden) {
+        wl_ctx.scheduleShow();
+    }
 
     // Run main event loop
     try wl_ctx.run();

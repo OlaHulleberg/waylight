@@ -30,11 +30,13 @@ pub const WebView = struct {
             null, // destroy_notify
         );
 
-        // Enable file:// URL access for loading local icons
+        // Configure WebKit settings
         const settings = c.webkit_web_view_get_settings(@ptrCast(webview));
         if (settings != null) {
             c.webkit_settings_set_allow_file_access_from_file_urls(settings, 1);
             c.webkit_settings_set_allow_universal_access_from_file_urls(settings, 1);
+            // Enable hardware acceleration for better performance
+            c.webkit_settings_set_hardware_acceleration_policy(settings, c.WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS);
         }
 
         const box = c.gtk_box_new(c.GTK_ORIENTATION_VERTICAL, 0);

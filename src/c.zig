@@ -35,6 +35,7 @@ pub const GMainLoop = c_imports.GMainLoop;
 pub const g_main_loop_new = c_imports.g_main_loop_new;
 pub const g_main_loop_run = c_imports.g_main_loop_run;
 pub const g_main_loop_quit = c_imports.g_main_loop_quit;
+pub const g_idle_add = c_imports.g_idle_add;
 
 // Event controller for keyboard
 pub const gtk_event_controller_key_new = c_imports.gtk_event_controller_key_new;
@@ -119,6 +120,8 @@ pub const WebKitSettings = c_imports.WebKitSettings;
 pub const webkit_web_view_get_settings = c_imports.webkit_web_view_get_settings;
 pub const webkit_settings_set_allow_file_access_from_file_urls = c_imports.webkit_settings_set_allow_file_access_from_file_urls;
 pub const webkit_settings_set_allow_universal_access_from_file_urls = c_imports.webkit_settings_set_allow_universal_access_from_file_urls;
+pub const webkit_settings_set_hardware_acceleration_policy = c_imports.webkit_settings_set_hardware_acceleration_policy;
+pub const WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS = c_imports.WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS;
 
 // GIO Channel for socket event loop integration
 pub const GIOChannel = c_imports.GIOChannel;

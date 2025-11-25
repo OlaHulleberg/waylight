@@ -119,6 +119,18 @@ pub const WaylandContext = struct {
         }
     }
 
+    pub fn scheduleShow(self: *WaylandContext) void {
+        _ = c.g_idle_add(@ptrCast(&idleShowCallback), self);
+    }
+
+    fn idleShowCallback(user_data: ?*anyopaque) callconv(.c) c_int {
+        if (user_data) |data| {
+            const ctx: *WaylandContext = @ptrCast(@alignCast(data));
+            ctx.show();
+        }
+        return 0; // Remove from idle (don't repeat)
+    }
+
     pub fn hide(self: *WaylandContext) void {
         if (!self.visible) return;
         c.gtk_widget_set_visible(@ptrCast(self.window), 0);
