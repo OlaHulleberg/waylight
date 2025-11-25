@@ -100,6 +100,7 @@ body {
 .results-container {
     max-height: 540px;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px;
     transition:
         opacity 0.2s ease,
@@ -200,6 +201,7 @@ body {
 
 .result-text {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -209,11 +211,17 @@ body {
     font-size: 15px;
     font-weight: 500;
     color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .result-description {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .calc-result {
