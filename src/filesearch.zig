@@ -34,75 +34,166 @@ pub const FileSearch = struct {
         // Nothing to clean up
     }
 
-    /// Search for files, directories, and apps using plocate with fd fallback
+    /// Search for files, directories, and apps using parallel plocate + fd
     pub fn search(self: *FileSearch, query: []const u8, max_results: usize) ![]SearchResult {
         if (query.len == 0) {
             return &[_]SearchResult{};
         }
 
-        // Try plocate first
+        // Run plocate and fd in parallel threads
+        const PlocateContext = struct {
+            search: *FileSearch,
+            query: []const u8,
+            max: usize,
+            results: ?[]SearchResult = null,
+        };
+        const FdContext = struct {
+            search: *FileSearch,
+            query: []const u8,
+            max: usize,
+            results: ?[]SearchResult = null,
+        };
+
+        var plocate_ctx = PlocateContext{ .search = self, .query = query, .max = max_results };
+        var fd_ctx = FdContext{ .search = self, .query = query, .max = max_results };
+
+        // Spawn plocate thread
+        const plocate_thread = std.Thread.spawn(.{}, struct {
+            fn run(ctx: *PlocateContext) void {
+                ctx.results = ctx.search.runPlocateSearch(ctx.query, ctx.max) catch null;
+            }
+        }.run, .{&plocate_ctx}) catch null;
+
+        // Spawn fd thread
+        const fd_thread = std.Thread.spawn(.{}, struct {
+            fn run(ctx: *FdContext) void {
+                ctx.results = ctx.search.runFdSearch(ctx.query, ctx.max) catch null;
+            }
+        }.run, .{&fd_ctx}) catch null;
+
+        // Wait for both threads
+        if (plocate_thread) |t| t.join();
+        if (fd_thread) |t| t.join();
+
+        // Merge results: apps first, then fd results (home files), limited to max_results
         var results = std.ArrayListUnmanaged(SearchResult){};
         errdefer {
             for (results.items) |*r| r.deinit();
             results.deinit(self.allocator);
         }
 
-        const plocate_paths = self.runPlocate(query, max_results * 3) catch |err| {
-            std.log.debug("plocate failed: {}, trying fd", .{err});
-            return self.runFdFallback(query, max_results);
-        };
-        defer self.allocator.free(plocate_paths);
-
-        if (plocate_paths.len == 0) {
-            // No results from plocate, try fd for recently created files
-            std.log.debug("plocate returned no results, trying fd fallback", .{});
-            return self.runFdFallback(query, max_results);
+        // Add apps from plocate first
+        if (plocate_ctx.results) |plocate_results| {
+            defer self.allocator.free(plocate_results);
+            for (plocate_results) |result| {
+                if (result.result_type == .app) {
+                    try results.append(self.allocator, result);
+                } else {
+                    var r = result;
+                    r.deinit();
+                }
+            }
         }
 
-        // Parse plocate output (newline-delimited paths)
-        var lines = std.mem.splitScalar(u8, plocate_paths, '\n');
-        var apps_count: usize = 0;
-        var files_count: usize = 0;
+        // Add fd results (home directory files/dirs)
+        if (fd_ctx.results) |fd_results| {
+            defer self.allocator.free(fd_results);
+            for (fd_results) |result| {
+                if (results.items.len >= max_results) {
+                    var r = result;
+                    r.deinit();
+                    continue;
+                }
+                try results.append(self.allocator, result);
+            }
+        }
 
+        // Trim to max_results
+        while (results.items.len > max_results) {
+            if (results.pop()) |*r| {
+                var result = r.*;
+                result.deinit();
+            }
+        }
+
+        return results.toOwnedSlice(self.allocator);
+    }
+
+    /// Run plocate search for .desktop apps only
+    fn runPlocateSearch(self: *FileSearch, query: []const u8, max_results: usize) ![]SearchResult {
+        const plocate_paths = self.runPlocate(query, max_results * 3) catch return &[_]SearchResult{};
+        defer self.allocator.free(plocate_paths);
+
+        var results = std.ArrayListUnmanaged(SearchResult){};
+        errdefer {
+            for (results.items) |*r| r.deinit();
+            results.deinit(self.allocator);
+        }
+
+        var lines = std.mem.splitScalar(u8, plocate_paths, '\n');
         while (lines.next()) |line| {
             const path = std.mem.trim(u8, line, " \t\r");
             if (path.len == 0) continue;
-
-            // Filter out unwanted system paths
             if (!self.shouldIncludePath(path)) continue;
 
-            // Parse the path into a result
+            // Only process .desktop files from plocate
+            if (!std.mem.endsWith(u8, path, ".desktop")) continue;
+
             if (self.parseResult(path)) |result| {
-                // Limit apps and files separately for balanced results
-                if (result.result_type == .app) {
-                    if (apps_count >= max_results / 2 + 2) {
-                        var r = result;
-                        r.deinit();
-                        continue;
-                    }
-                    apps_count += 1;
-                } else {
-                    if (files_count >= max_results / 2 + 2) {
-                        var r = result;
-                        r.deinit();
-                        continue;
-                    }
-                    files_count += 1;
-                }
-
                 try results.append(self.allocator, result);
-
                 if (results.items.len >= max_results) break;
             }
         }
 
-        // Sort: apps first, then directories, then files
-        std.mem.sort(SearchResult, results.items, {}, struct {
-            fn lessThan(_: void, a: SearchResult, b: SearchResult) bool {
-                const order = [_]u8{ 0, 2, 1 }; // app=0, file=2, dir=1
-                return order[@intFromEnum(a.result_type)] < order[@intFromEnum(b.result_type)];
+        return results.toOwnedSlice(self.allocator);
+    }
+
+    /// Run fd search for home directory files
+    fn runFdSearch(self: *FileSearch, query: []const u8, max_results: usize) ![]SearchResult {
+        const home = std.posix.getenv("HOME") orelse return &[_]SearchResult{};
+        const max_str = try std.fmt.allocPrint(self.allocator, "{d}", .{max_results * 2});
+        defer self.allocator.free(max_str);
+
+        const argv = [_][]const u8{
+            "fd",
+            "-i",
+            "--max-results",
+            max_str,
+            query,
+            home,
+        };
+
+        var child = std.process.Child.init(&argv, self.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Pipe;
+
+        try child.spawn();
+
+        const stdout = child.stdout.?;
+        const fd_output = try stdout.readToEndAlloc(self.allocator, 1024 * 1024);
+        defer self.allocator.free(fd_output);
+
+        _ = child.wait() catch {};
+
+        var results = std.ArrayListUnmanaged(SearchResult){};
+        errdefer {
+            for (results.items) |*r| r.deinit();
+            results.deinit(self.allocator);
+        }
+
+        var lines = std.mem.splitScalar(u8, fd_output, '\n');
+        while (lines.next()) |line| {
+            const path = std.mem.trim(u8, line, " \t\r");
+            if (path.len == 0) continue;
+
+            // Skip .desktop files (handled by plocate)
+            if (std.mem.endsWith(u8, path, ".desktop")) continue;
+
+            if (self.parseResult(path)) |result| {
+                try results.append(self.allocator, result);
+                if (results.items.len >= max_results) break;
             }
-        }.lessThan);
+        }
 
         return results.toOwnedSlice(self.allocator);
     }
@@ -133,51 +224,6 @@ pub const FileSearch = struct {
         return result;
     }
 
-    fn runFdFallback(self: *FileSearch, query: []const u8, max_results: usize) ![]SearchResult {
-        const home = std.posix.getenv("HOME") orelse "/home";
-        const max_str = try std.fmt.allocPrint(self.allocator, "{d}", .{max_results * 2});
-        defer self.allocator.free(max_str);
-
-        const argv = [_][]const u8{
-            "fd",
-            "-i", // Case-insensitive
-            "--max-results",
-            max_str,
-            query,
-            home,
-        };
-
-        var child = std.process.Child.init(&argv, self.allocator);
-        child.stdout_behavior = .Pipe;
-        child.stderr_behavior = .Pipe;
-
-        try child.spawn();
-
-        const stdout = child.stdout.?;
-        const fd_output = try stdout.readToEndAlloc(self.allocator, 1024 * 1024);
-        defer self.allocator.free(fd_output);
-
-        _ = child.wait() catch {};
-
-        var results = std.ArrayListUnmanaged(SearchResult){};
-        errdefer {
-            for (results.items) |*r| r.deinit();
-            results.deinit(self.allocator);
-        }
-
-        var lines = std.mem.splitScalar(u8, fd_output, '\n');
-        while (lines.next()) |line| {
-            const path = std.mem.trim(u8, line, " \t\r");
-            if (path.len == 0) continue;
-
-            if (self.parseResult(path)) |result| {
-                try results.append(self.allocator, result);
-                if (results.items.len >= max_results) break;
-            }
-        }
-
-        return results.toOwnedSlice(self.allocator);
-    }
 
     fn shouldIncludePath(_: *FileSearch, path: []const u8) bool {
         // Always include .desktop files from applications directories
@@ -359,7 +405,9 @@ pub const FileSearch = struct {
     }
 
     fn isDirectory(_: *FileSearch, path: []const u8) bool {
-        const stat = std.fs.cwd().statFile(path) catch return false;
-        return stat.kind == .directory;
+        // Try to open as directory - if it succeeds, it's a directory
+        var dir = std.fs.openDirAbsolute(path, .{}) catch return false;
+        dir.close();
+        return true;
     }
 };
