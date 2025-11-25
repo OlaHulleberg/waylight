@@ -24,11 +24,11 @@ sudo cp zig-out/bin/waylight /usr/local/bin/
 
 ```bash
 # Hyprland (~/.config/hypr/hyprland.conf)
-exec-once = waylight
+exec-once = waylight --daemon
 bind = SUPER, SPACE, exec, waylight --toggle
 
 # Sway (~/.config/sway/config)
-exec waylight
+exec waylight --daemon
 bindsym $mod+space exec waylight --toggle
 ```
 
