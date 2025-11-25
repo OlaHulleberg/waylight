@@ -8,7 +8,7 @@ pub const WaylandContext = struct {
     allocator: std.mem.Allocator,
     window: *c.GtkWindow,
     main_loop: *c.GMainLoop,
-    visible: bool = true,
+    visible: bool = false,
     on_show: ?*const fn () void = null,
 
     pub fn init(allocator: std.mem.Allocator) !WaylandContext {
@@ -78,8 +78,8 @@ pub const WaylandContext = struct {
         );
         c.gtk_widget_add_controller(@ptrCast(self.window), key_controller);
 
-        // Show the window
-        c.gtk_widget_show(@ptrCast(self.window));
+        // Initialize window as hidden (will be shown via toggle)
+        c.gtk_widget_set_visible(@ptrCast(self.window), 0);
     }
 
     // Static callback for key press events
