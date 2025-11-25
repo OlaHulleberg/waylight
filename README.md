@@ -1,90 +1,43 @@
+<div align="center">
+
 # Waylight
 
-A fast application launcher for Wayland.
+**A blazingly fast application launcher for Wayland**
 
-![waylight](https://github.com/OlaHulleberg/waylight/assets/screenshot.png)
+![waylight](assets/screenshot.webp)
 
-## Features
+</div>
 
-- Application launcher with fuzzy search
-- File and directory search (powered by plocate)
-- Built-in calculator (type math expressions like `2+2` or `sqrt(16)`)
-- Copies calculator results to clipboard on Enter
-- Smooth animations
-- Works on any wlroots-based compositor (Hyprland, Sway, etc.)
-
-## Dependencies
-
-- gtk4
-- gtk4-layer-shell
-- webkitgtk-6.0
-- wl-clipboard
-- libqalculate (for calculator)
-- plocate (for file search)
-- fd (optional, fallback for recently created files)
-- zig (build only)
-
-### Arch Linux
+## Install
 
 ```bash
-pacman -S gtk4 gtk4-layer-shell webkitgtk-6.0 wl-clipboard libqalculate plocate fd zig
-```
+# Arch Linux
+sudo pacman -S gtk4 gtk4-layer-shell webkitgtk-6.0 wl-clipboard libqalculate plocate zig
 
-## Building
-
-```bash
-git clone https://github.com/OlaHulleberg/waylight
-cd waylight
+# Build & Install
+git clone https://github.com/OlaHulleberg/waylight && cd waylight
 zig build -Doptimize=ReleaseFast
-```
-
-## Installation
-
-```bash
 sudo cp zig-out/bin/waylight /usr/local/bin/
 ```
 
-Or use the PKGBUILD for Arch Linux.
+## Setup
 
-## Usage
-
-Waylight runs as a daemon for instant startup. Add these to your config:
-
-### Hyprland
-
-```conf
-# Start daemon on login
+```bash
+# Hyprland (~/.config/hypr/hyprland.conf)
 exec-once = waylight
-
-# Toggle with keybind
 bind = SUPER, SPACE, exec, waylight --toggle
-```
 
-### Sway
-
-```conf
-# Start daemon on login
+# Sway (~/.config/sway/config)
 exec waylight
-
-# Toggle with keybind
 bindsym $mod+space exec waylight --toggle
 ```
 
-## Commands
+## Features
 
-| Command | Action |
-|---------|--------|
-| `waylight` | Start daemon |
-| `waylight --toggle` | Toggle visibility |
-| `waylight --quit` | Stop daemon |
-
-## Keybinds
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Launch selected app / Copy calculator result |
-| `Escape` | Hide window |
-| `Arrow Up/Down` | Navigate results |
+- **App launcher** with fuzzy search
+- **File search** powered by plocate
+- **Calculator** built-in (try `sqrt(16)` or `2^10`)
+- **Instant** daemon mode, no startup delay
 
 ## License
 
