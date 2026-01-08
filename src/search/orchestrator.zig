@@ -30,6 +30,11 @@ pub const Orchestrator = struct {
         self.calc_provider.deinit();
     }
 
+    /// Reload all desktop entries (called when .desktop files change)
+    pub fn reloadApps(self: *Orchestrator) void {
+        self.app_provider.reload();
+    }
+
     /// Execute search across all providers and return merged, ranked results
     pub fn search(self: *Orchestrator, query: []const u8, max_results: usize) ![]SearchResult {
         if (query.len == 0) return &[_]SearchResult{};

@@ -23,6 +23,11 @@ pub const Handler = struct {
         self.orchestrator.deinit();
     }
 
+    /// Reload desktop entries (called when .desktop files change)
+    pub fn reloadApps(self: *Handler) void {
+        self.orchestrator.reloadApps();
+    }
+
     pub fn setHideCallback(self: *Handler, callback: *const fn () void) void {
         self.hide_callback = callback;
     }
