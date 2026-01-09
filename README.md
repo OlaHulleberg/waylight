@@ -42,3 +42,5 @@ bindsym $mod+space exec waylight --toggle
 ## License
 
 MIT
+
+<!-- test ci -->
