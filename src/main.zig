@@ -5,6 +5,7 @@ const wayland = @import("wayland.zig");
 const webview = @import("webview.zig");
 const handler = @import("handler.zig");
 const ipc = @import("ipc.zig");
+const watcher = @import("watcher.zig");
 
 pub const std_options: std.Options = .{
     .log_level = @enumFromInt(@intFromEnum(build_options.log_level)),
@@ -171,11 +172,39 @@ fn runDaemon(allocator: std.mem.Allocator, start_hidden: bool) !void {
     // Integrate IPC with GLib main loop
     ipc_server.integrateWithGLib();
 
+    // Set up file watcher for .desktop files
+    var desktop_watcher = watcher.DesktopWatcher.init(allocator) catch |err| {
+        std.log.warn("Could not initialize desktop watcher: {}", .{err});
+        return runWithoutWatcher(&wl_ctx, start_hidden);
+    };
+    defer desktop_watcher.deinit();
+
+    desktop_watcher.watchDesktopDirs() catch |err| {
+        std.log.warn("Could not watch desktop dirs: {}", .{err});
+    };
+
+    desktop_watcher.setChangeCallback(&struct {
+        fn onDesktopFilesChanged() void {
+            if (global_msg_handler) |h| {
+                h.reloadApps();
+            }
+        }
+    }.onDesktopFilesChanged);
+
+    desktop_watcher.integrateWithGLib();
+
     // Schedule window to show once main loop starts (unless started as daemon)
     if (!start_hidden) {
         wl_ctx.scheduleShow();
     }
 
     // Run main event loop
+    try wl_ctx.run();
+}
+
+fn runWithoutWatcher(wl_ctx: *wayland.WaylandContext, start_hidden: bool) !void {
+    if (!start_hidden) {
+        wl_ctx.scheduleShow();
+    }
     try wl_ctx.run();
 }

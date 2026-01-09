@@ -35,10 +35,24 @@ pub const AppProvider = struct {
     }
 
     pub fn deinit(self: *AppProvider) void {
+        self.clearEntries();
+        self.entries.deinit(self.allocator);
+    }
+
+    fn clearEntries(self: *AppProvider) void {
         for (self.entries.items) |*entry| {
             entry.deinit();
         }
-        self.entries.deinit(self.allocator);
+        self.entries.clearRetainingCapacity();
+    }
+
+    /// Reload all desktop entries (called when files change)
+    pub fn reload(self: *AppProvider) void {
+        self.clearEntries();
+        self.loaded = false;
+        self.loadEntries() catch |err| {
+            std.log.err("Failed to reload desktop entries: {}", .{err});
+        };
     }
 
     /// Load all desktop entries from standard locations

@@ -135,3 +135,6 @@ pub const G_IO_HUP = c_imports.G_IO_HUP;
 
 // Window presentation (for focus)
 pub const gtk_window_present = c_imports.gtk_window_present;
+
+// GLib timeout for debouncing
+pub const g_timeout_add = c_imports.g_timeout_add;
