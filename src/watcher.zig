@@ -1,6 +1,7 @@
 const std = @import("std");
 const c = @import("c.zig");
 const posix = std.posix;
+const linux = std.os.linux;
 
 /// Watches .desktop file directories for changes using inotify.
 /// Integrates with GLib main loop and debounces rapid changes.
@@ -23,7 +24,7 @@ pub const DesktopWatcher = struct {
     const DEBOUNCE_MS: c_uint = 300;
 
     pub fn init(allocator: std.mem.Allocator) !DesktopWatcher {
-        const fd = try posix.inotify_init1(.{ .NONBLOCK = true, .CLOEXEC = true });
+        const fd = try posix.inotify_init1(linux.O{ .NONBLOCK = true, .CLOEXEC = true });
         errdefer posix.close(fd);
 
         return DesktopWatcher{
