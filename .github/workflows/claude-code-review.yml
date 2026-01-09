@@ -19,6 +19,9 @@ jobs:
     #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
 
     runs-on: ubuntu-latest
+    container: archlinux
+    env:
+      GIT_DISCOVERY_ACROSS_FILESYSTEM: 1
     permissions:
       contents: read
       pull-requests: read
@@ -26,10 +29,16 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
         with:
-          fetch-depth: 1
+          version: 0.15.2
+
+      - name: Install dependencies and checkout
+        run: |
+          pacman -Syu --noconfirm base-devel git unzip gtk4 gtk4-layer-shell webkitgtk-6.0 wl-clipboard libqalculate plocate fd
+          git clone https://github.com/$GITHUB_REPOSITORY $GITHUB_WORKSPACE
+          git config --global --add safe.directory $GITHUB_WORKSPACE
 
       - name: Run Claude Code Review
         id: claude-review
