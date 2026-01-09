@@ -24,7 +24,7 @@ pub const DesktopWatcher = struct {
     const DEBOUNCE_MS: c_uint = 300;
 
     pub fn init(allocator: std.mem.Allocator) !DesktopWatcher {
-        const fd = try posix.inotify_init1(linux.O{ .NONBLOCK = true, .CLOEXEC = true });
+        const fd = try posix.inotify_init1(@bitCast(linux.O{ .NONBLOCK = true, .CLOEXEC = true }));
         errdefer posix.close(fd);
 
         return DesktopWatcher{
