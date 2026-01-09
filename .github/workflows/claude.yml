@@ -30,6 +30,14 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev gtk4-layer-shell libwebkitgtk-6.0-dev wl-clipboard libqalculate-dev plocate fd-find
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
